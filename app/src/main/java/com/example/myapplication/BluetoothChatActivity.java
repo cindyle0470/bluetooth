@@ -32,7 +32,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
-public class ClientActivity extends AppCompatActivity {
+public class BluetoothChatActivity extends AppCompatActivity {
     private final int REQUEST_BT_ENABLE = 1;
     private final int REQUEST_PERMISSION = 2;
     private Button btnScan, btnStopScan, btnWrite;

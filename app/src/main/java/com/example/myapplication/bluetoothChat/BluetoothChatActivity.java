@@ -15,10 +15,13 @@ import android.content.Intent;
 import android.content.IntentFilter;
 import android.content.pm.PackageManager;
 import android.os.Bundle;
+import android.os.Handler;
+import android.os.Message;
 import android.renderscript.ScriptGroup;
 import android.util.Log;
 import android.view.View;
 import android.widget.AdapterView;
+import android.widget.ArrayAdapter;
 import android.widget.Button;
 import android.widget.EditText;
 import android.widget.ListView;
@@ -36,12 +39,19 @@ public class BluetoothChatActivity extends AppCompatActivity {
     private final int REQUEST_BT_ENABLE = 1;
     private final int REQUEST_PERMISSION = 2;
     private Button btnScan, btnStopScan, btnWrite;
-    private TextView scanState, pairingState, readData, writeData, tv;
+    private TextView scanState, connectState, readData, writeData;
     private EditText edWrite;
-    private ListView btItems;
+    private ListView btItems, chatBox;
     private BluetoothAdapter bluetoothAdapter;
     private List<BluetoothDevice> devices = new ArrayList<>();
+    private ArrayAdapter<String> mConversationArrayAdapter;
     private Toast mToast;
+    private String deviceAddress, deviceName;
+    private BroadcastReceiver receiver;
+    private Handler handler;
+    private BluetoothDevice btDevice;
+    private BluetoothChatService chatService;
+    private StringBuffer mOutStringBuffer;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -57,6 +67,36 @@ public class BluetoothChatActivity extends AppCompatActivity {
                 scanBt();
             }
         });
+
+        btnWrite.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                String msg = edWrite.getText().toString();
+                sendMessage(msg);
+            }
+        });
+
+        mConversationArrayAdapter = new ArrayAdapter<>(this, R.layout.message);
+        chatBox.setAdapter(mConversationArrayAdapter);
+    }
+
+    private void sendMessage(String message) {
+        // Check that we're actually connected before trying anything
+        if (chatService.getState() != BluetoothChatService.STATE_CONNECTED) {
+            showToast("You are not connected to a device");
+            return;
+        }
+
+        // Check that there's actually something to send
+        if (message.length() > 0) {
+            // Get the message bytes and tell the BluetoothChatService to write
+            byte[] send = message.getBytes();
+            chatService.write(send);
+
+            // Reset out string buffer to zero and clear the edit text field
+            mOutStringBuffer.setLength(0);
+            edWrite.setText("");
+        }
     }
 
     private void scanBt() {
@@ -90,8 +130,6 @@ public class BluetoothChatActivity extends AppCompatActivity {
                 item.put("mac", device.getAddress());
                 items.add(item);
             }
-
-
         }
 
         // 獲取未配對裝置
@@ -155,6 +193,7 @@ public class BluetoothChatActivity extends AppCompatActivity {
     }
 
     private void setDevicesList(List<Map<String, String>> items) {
+        showLog("set list.");
         SimpleAdapter adapter = new SimpleAdapter(
                 this,
                 items,
@@ -166,24 +205,43 @@ public class BluetoothChatActivity extends AppCompatActivity {
         btItems.setOnItemClickListener(new AdapterView.OnItemClickListener() {
             @Override
             public void onItemClick(AdapterView<?> parent, View view, int position, long id) {
-                String selectItem = items.get(position).get("mac");
-                for (BluetoothDevice device : devices) {
-                    if (device.getAddress().equals(selectItem)) {
-                        device.createBond();
-                        tv.setText("設備 : " + selectItem + "     已綁定");
+                // 關閉掃描，因掃描非常耗資源，故已確認要連接哪個設備後就可關掉
+                if(bluetoothAdapter.isDiscovering()){
+                    bluetoothAdapter.cancelDiscovery();
+                }
 
-                        //
+                deviceAddress = items.get(position).get("mac");
+                deviceName = items.get(position).get("name");
+                for (BluetoothDevice device : devices) {
+                    if (device.getAddress().equals(deviceAddress)) {
+                        device.createBond();
                     }
                 }
+
+                showLog("name : " + deviceName + ", mac : " + deviceAddress);
+
+                // 取得mac
+                btDevice = bluetoothAdapter.getRemoteDevice(deviceAddress);
+                // 連接設備
+                chatService.connect(btDevice);
+
             }
         });
-
-        pairingState.setText(bluetoothAdapter.getBondedDevices().toString());
-        // 關閉掃描
-        bluetoothAdapter.cancelDiscovery();
+        connectState.setText(bluetoothAdapter.getBondedDevices().toString());
     }
 
+    @Override
+    protected void onDestroy() {
+        super.onDestroy();
 
+        if(bluetoothAdapter.isDiscovering()){
+            bluetoothAdapter.cancelDiscovery();
+        }
+
+        if(chatService != null) {
+            chatService.stop();
+        }
+    }
 
     private void openBt() {
         showLog("確認是否開啟藍牙");
@@ -204,13 +262,65 @@ public class BluetoothChatActivity extends AppCompatActivity {
         }
     }
 
+    /**
+     * The Handler that gets information back from the BluetoothChatService
+     */
+    private final Handler mHandler = new Handler() {
+        @Override
+        public void handleMessage(Message msg) {
+            switch (msg.what) {
+                case Constants.MESSAGE_STATE_CHANGE:
+                    switch (msg.arg1) {
+                        case BluetoothChatService.STATE_CONNECTED:
+                            mConversationArrayAdapter.clear();
+                            break;
+                        case BluetoothChatService.STATE_CONNECTING:
+                            connectState.setText("connecting...");
+                            break;
+                        case BluetoothChatService.STATE_LISTEN:
+                        case BluetoothChatService.STATE_NONE:
+                            connectState.setText("not connected");
+                            break;
+                    }
+                    break;
+                case Constants.MESSAGE_WRITE:
+                    byte[] writeBuf = (byte[]) msg.obj;
+                    // construct a string from the buffer
+                    String writeMessage = new String(writeBuf);
+
+                    mConversationArrayAdapter.add("Me:  " + writeMessage);
+                    break;
+                case Constants.MESSAGE_READ:
+                    byte[] readBuf = (byte[]) msg.obj;
+                    // construct a string from the valid bytes in the buffer
+                    String readMessage = new String(readBuf, 0, msg.arg1);
+
+                    mConversationArrayAdapter.add(deviceName + ":  " + readMessage);
+                    break;
+                case Constants.MESSAGE_DEVICE_NAME:
+                    // save the connected device's name
+                    deviceName = msg.getData().getString(Constants.DEVICE_NAME);
+                    showToast("Connected to " + deviceName);
+                    break;
+                case Constants.MESSAGE_TOAST:
+                    showToast(msg.getData().getString(Constants.TOAST));
+                    break;
+            }
+        }
+    };
+
     private void initBt() {
         checkLocationPermissions();
         showLog("確認危險權限");
         openBt();
+        // Initialize the BluetoothChatService to perform bluetooth connections
+        chatService = new BluetoothChatService(this, mHandler);
+
+        // Initialize the buffer for outgoing messages
+        mOutStringBuffer = new StringBuffer();
     }
 
-    private void showToast(String text) {
+    public void showToast(String text) {
         Toast.makeText(this, text, Toast.LENGTH_LONG).show();
     }
 
@@ -254,16 +364,32 @@ public class BluetoothChatActivity extends AppCompatActivity {
         }
     }
 
+    @Override
+    protected void onResume() {
+        super.onResume();
+        // Performing this check in onResume() covers the case in which BT was
+        // not enabled during onStart(), so we were paused to enable it...
+        // onResume() will be called when ACTION_REQUEST_ENABLE activity returns.
+        if (chatService != null) {
+            // Only if the state is STATE_NONE, do we know that we haven't started already
+            if (chatService.getState() == BluetoothChatService.STATE_NONE) {   // 初始狀態
+                // Start the Bluetooth chat services
+                chatService.start();
+                showLog("onResume - chatService start.");
+            }
+        }
+    }
+
     private void findViews() {
         btnScan = findViewById(R.id.btn_scan);
         btnStopScan = findViewById(R.id.btn_stop_scan);
         btItems = findViewById(R.id.lv);
         btnWrite = findViewById(R.id.btn_write);
         scanState = findViewById(R.id.tv_scan_state);
-        pairingState = findViewById(R.id.tv_pairing_state);
+        connectState = findViewById(R.id.tv_connect_state);
         readData = findViewById(R.id.tv_read_data);
         writeData = findViewById(R.id.tv_write_data);
-        tv = findViewById(R.id.tv);
+        chatBox = findViewById(R.id.chatBox);
         edWrite = findViewById(R.id.et_write);
     }
 }

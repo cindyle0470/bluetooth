@@ -1,4 +1,4 @@
-package com.example.myapplication;
+package com.example.myapplication.bluetoothChat;
 
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
@@ -17,7 +17,6 @@ import android.content.pm.PackageManager;
 import android.os.Bundle;
 import android.os.Handler;
 import android.os.Message;
-import android.renderscript.ScriptGroup;
 import android.util.Log;
 import android.view.View;
 import android.widget.AdapterView;
@@ -28,6 +27,8 @@ import android.widget.ListView;
 import android.widget.SimpleAdapter;
 import android.widget.TextView;
 import android.widget.Toast;
+
+import com.example.myapplication.R;
 
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -81,19 +82,19 @@ public class BluetoothChatActivity extends AppCompatActivity {
     }
 
     private void sendMessage(String message) {
-        // Check that we're actually connected before trying anything
+        // 先確認 bluetoothChatService 是否仍連線
         if (chatService.getState() != BluetoothChatService.STATE_CONNECTED) {
             showToast("You are not connected to a device");
             return;
         }
 
-        // Check that there's actually something to send
+        // 確認用戶是否有寫入訊息
         if (message.length() > 0) {
-            // Get the message bytes and tell the BluetoothChatService to write
+            // 將寫入之 String 轉成 bytes，再傳至 BluetoothChatService
             byte[] send = message.getBytes();
             chatService.write(send);
 
-            // Reset out string buffer to zero and clear the edit text field
+            // 清空 string buffer & 輸入欄位
             mOutStringBuffer.setLength(0);
             edWrite.setText("");
         }
@@ -234,6 +235,8 @@ public class BluetoothChatActivity extends AppCompatActivity {
     protected void onDestroy() {
         super.onDestroy();
 
+        unregisterReceiver(receiver);
+
         if(bluetoothAdapter.isDiscovering()){
             bluetoothAdapter.cancelDiscovery();
         }
@@ -313,10 +316,10 @@ public class BluetoothChatActivity extends AppCompatActivity {
         checkLocationPermissions();
         showLog("確認危險權限");
         openBt();
-        // Initialize the BluetoothChatService to perform bluetooth connections
+        // 初始化 BluetoothChatService
         chatService = new BluetoothChatService(this, mHandler);
 
-        // Initialize the buffer for outgoing messages
+        // 初始化 StringBuffer
         mOutStringBuffer = new StringBuffer();
     }
 

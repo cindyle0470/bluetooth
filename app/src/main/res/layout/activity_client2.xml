@@ -72,12 +72,12 @@
         <TextView
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:text="綁定状态: "
+            android:text="連接状态: "
             />
         <TextView
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:id="@+id/tv_pairing_state"
+            android:id="@+id/tv_connect_state"
             android:textColor="@color/design_default_color_primary_dark"
             android:text="未知"
             />
@@ -141,16 +141,13 @@
     <!--            />-->
     <!--    </LinearLayout>-->
 
-    <TextView
-        android:id="@+id/tv"
-        android:background="#E6E6FA"
+    <ListView
+        android:layout_width="match_parent"
+        android:layout_height="130dp"
+        android:layout_margin="20dp"
+        android:id="@+id/chatBox"
         android:layout_gravity="center"
-        android:paddingLeft="10dp"
-        android:layout_width="350dp"
-        android:layout_height="100dp"
-        android:layout_marginTop="10dp" />
-
-
+        android:background="@color/aliceblue"/>
 
     <EditText
         android:padding="10dp"
@@ -158,7 +155,6 @@
         android:layout_height="wrap_content"
         android:id="@+id/et_write"
         android:hint="輸入数据"
-        android:layout_marginTop="10dp"
         />
     <LinearLayout
         android:padding="20dp"

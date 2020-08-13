@@ -87,26 +87,6 @@
             android:id="@+id/btn_disable_notify"
             />
     </LinearLayout>
-    <LinearLayout
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:orientation="horizontal"
-        >
-        <Button
-            android:layout_width="0dp"
-            android:layout_weight="1"
-            android:layout_height="wrap_content"
-            android:text="开启indicate"
-            android:id="@+id/btn_indicate"
-            />
-        <Button
-            android:layout_width="0dp"
-            android:layout_weight="1"
-            android:layout_height="wrap_content"
-            android:text="关闭indicate"
-            android:id="@+id/btn_disable_indicate"
-            />
-    </LinearLayout>
 
     <EditText
         android:layout_width="match_parent"

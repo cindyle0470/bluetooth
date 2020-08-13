@@ -25,6 +25,7 @@ import android.widget.Toast;
 
 import com.clj.fastble.BleManager;
 import com.clj.fastble.callback.BleGattCallback;
+import com.clj.fastble.callback.BleIndicateCallback;
 import com.clj.fastble.callback.BleNotifyCallback;
 import com.clj.fastble.callback.BleReadCallback;
 import com.clj.fastble.callback.BleScanCallback;
@@ -39,12 +40,22 @@ import java.util.UUID;
 
 
 public class BleActivity extends AppCompatActivity {
+    private static final String SERVICE_DATA = "00001111-0000-1000-8000-00805f9b34fb";
+    private static final String CHARACTERISTIC_READ = "00002222-0000-1000-8000-00805f9b34fb";
+    private static final String CHARACTERISTIC_WRITE = "b6f876cc-02bc-4f37-ad41-b7b78ca92267";
+    private static final String CHARACTERISTIC_NOTIFY = "0c86f690-789e-490d-8f4b-528eb6552855";
+
+    public static final UUID UUID_SERVICE_DATA = UUID.fromString(SERVICE_DATA);
+    public static final UUID UUID_CHARACTERISTIC_READ = UUID.fromString(CHARACTERISTIC_READ);
+    public static final UUID UUID_CHARACTERISTIC_WRITE = UUID.fromString(CHARACTERISTIC_WRITE);
+    public static final UUID UUID_CHARACTERISTIC_NOTIFY = UUID.fromString(CHARACTERISTIC_NOTIFY);
+
     private final int REQUEST_BT_ENABLE = 1;
     private final int REQUEST_PERMISSION = 2;
     private int permission_coarse, permission_fine, permission_bt, permission_bt_admin;
-    private Button btnScan, btnStopScan, btnConnect, btnDisconnect, btnRead, btnWrite, btnNotify, btnDisNotify, btnIndicate, btnDisIndicate;
+    private Button btnScan, btnStopScan, btnConnect, btnDisconnect, btnRead, btnWrite, btnNotify, btnDisNotify;
     private EditText edtWrite;
-    private TextView scanState, connectState, readData, writeData, notifyData, mac, indecateData;
+    private TextView scanState, connectState, readData, writeData, notifyData, mac;
     private BleDevice device;
     private UUID uuid_service, uuid_chara;
 
@@ -207,8 +218,8 @@ public class BleActivity extends AppCompatActivity {
         // 設定掃描規則
         BleScanRuleConfig scanRuleConfig = new BleScanRuleConfig.Builder()
               //  .setServiceUuids(serviceUuids)      // 只扫描指定的服务的设备，可选
-              //  .setDeviceName(true, "GATT Server")         // 只扫描指定广播名的设备，可选
-             //   .setDeviceMac(mac)                  // 只扫描指定mac的设备，可选
+                .setDeviceName(true, "askeyTest")         // 只扫描指定广播名的设备，可选
+              //  .setDeviceMac("A8:87:B3:AA:43:FB")                  // 只扫描指定mac的设备，可选
              //   .setAutoConnect(isAutoConnect)      // 连接时的autoConnect参数，可选，默认false
                 .setScanTimeOut(10000)              // 掃描超時時間，可自行設定，預設10秒
                 .build();
@@ -219,8 +230,8 @@ public class BleActivity extends AppCompatActivity {
             @Override
             public void onScanFinished(List<BleDevice> scanResultList) {
                 //搜索完成，列出所有掃描到的設備，亦可能為空
-                Log.i("TAG", "scan_finished. list" + scanResultList.toString());
-                //stopScan();
+                Log.i("TAG", "list :" + scanResultList.toString());
+                stopScan();
 
             }
 
@@ -233,6 +244,7 @@ public class BleActivity extends AppCompatActivity {
 
             @Override
             public void onScanning(BleDevice bleDevice) {
+                scanState.setText("搜索中");
                 Log.i("TAG", "scan_onScanning");
                 // bleDevice：搜索到的设备，內含以下訊息：
                     // String getName()：廣播名稱
@@ -247,6 +259,9 @@ public class BleActivity extends AppCompatActivity {
                     stopScan();
                     mac.setText(bleDevice.getName());
                     device = bleDevice;
+                    Log.i("TAG", "device_name : " + bleDevice.getName() + ", device_mac :" + bleDevice.getMac());
+                } else {
+                    Log.i("TAG", "no device here ~~");
                 }
             }
         });
@@ -303,10 +318,11 @@ public class BleActivity extends AppCompatActivity {
             List<BluetoothGattCharacteristic > characteristicList = service.getCharacteristics();
             for (BluetoothGattCharacteristic characteristic : characteristicList) {
                 uuid_chara = characteristic.getUuid();
+                Log.i("TAG_uuid", "chara ：" + uuid_chara);
             }
-            Log.i("TAG_uuid", "chara ：" + characteristicList.get(0).getUuid().toString());
+            Log.i("TAG_uuid", "service：" + uuid_service);
         }
-        Log.i("TAG_uuid", "service：" + serviceList.toString());
+
     }
 
     private void stopScan() {
@@ -321,8 +337,8 @@ public class BleActivity extends AppCompatActivity {
     private void bleRead() {
         BleManager.getInstance().read(
                 device,
-                uuid_service.toString(),
-                uuid_chara.toString(),
+                UUID_SERVICE_DATA.toString(),
+                UUID_CHARACTERISTIC_READ.toString(),
                 new BleReadCallback() {
                     @Override
                     public void onReadSuccess(byte[] data) {
@@ -341,8 +357,8 @@ public class BleActivity extends AppCompatActivity {
     private void bleWrite() {
         BleManager.getInstance().write(
                 device,
-                uuid_service.toString(),
-                uuid_chara.toString(),
+                UUID_SERVICE_DATA.toString(),
+                UUID_CHARACTERISTIC_WRITE.toString(),
                 edtWrite.getText().toString().getBytes(),
                 new BleWriteCallback() {
                     @Override
@@ -362,25 +378,25 @@ public class BleActivity extends AppCompatActivity {
     private void bleNotify() {
         BleManager.getInstance().notify(
                 device,
-                uuid_service.toString(),
-                uuid_chara.toString(),
+                UUID_SERVICE_DATA.toString(),
+                UUID_CHARACTERISTIC_NOTIFY.toString(),
                 new BleNotifyCallback() {
                     @Override
                     public void onNotifySuccess() {
-                        Log.i("TAG", "打開通知操作成功");
-                        Toast.makeText(BleActivity.this, "打開通知操作成功", Toast.LENGTH_LONG).show();
+                        Log.i("TAG", "打開通知 Notify 操作成功");
+                        Toast.makeText(BleActivity.this, " Notify 操作成功", Toast.LENGTH_LONG).show();
                     }
 
                     @Override
                     public void onNotifyFailure(BleException exception) {
-                        Log.i("TAG", "打開通知操作失敗");
-                        Toast.makeText(BleActivity.this, "打開通知操作失敗", Toast.LENGTH_LONG).show();
+                        Log.i("TAG", "打開通知 Notify 操作失敗");
+                        Toast.makeText(BleActivity.this, " Notify 操作失敗", Toast.LENGTH_LONG).show();
                     }
 
                     @Override
                     public void onCharacteristicChanged(byte[] data) {
-                        Log.i("TAG", "打開通知後，device 發過來的數據將在這裡出現");
-                        indecateData.setText(new String(data));
+                        Log.i("TAG", "打開 Notify 通知後，device 數據出現");
+                        notifyData.setText(new String(data));
                     }
                 }
         );
@@ -402,8 +418,5 @@ public class BleActivity extends AppCompatActivity {
         writeData = findViewById(R.id.tv_write_data);
         notifyData = findViewById(R.id.tv_notify_data);
         mac = findViewById(R.id.mac);
-        btnIndicate = findViewById(R.id.btn_indicate);
-        btnDisIndicate = findViewById(R.id.btn_disable_indicate);
-        indecateData = findViewById(R.id.tv_indicate_data);
     }
 }
